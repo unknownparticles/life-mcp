@@ -102,18 +102,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave }
                             />
                         </div>
                     )}
-
-                    {/* Backend URL */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">同步服务器地址 (Backend URL)</label>
-                        <input
-                            type="text"
-                            value={settings.backendUrl}
-                            onChange={e => setSettings({ ...settings, backendUrl: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm outline-none"
-                            placeholder="例如: https://your-worker.workers.dev"
-                        />
-                    </div>
                 </div>
 
                 <div className="px-6 py-5 bg-slate-50 flex space-x-3">

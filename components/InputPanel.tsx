@@ -52,10 +52,12 @@ const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!inputText.trim() || isLoading) return;
-    onProcess(inputText);
-    setInputText('');
+    const success = await (onProcess(inputText) as unknown as Promise<boolean>);
+    if (success) {
+      setInputText('');
+    }
   };
 
   return (

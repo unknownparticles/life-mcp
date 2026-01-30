@@ -26,10 +26,10 @@ const App: React.FC = () => {
     }
   }, [session]);
 
-  const handleProcess = async (content: string) => {
+  const handleProcess = async (content: string): Promise<boolean> => {
     if (!settings.apiKey) {
       setIsSettingsOpen(true);
-      return;
+      return false;
     }
 
     setIsLoading(true);
@@ -45,8 +45,10 @@ const App: React.FC = () => {
 
       storageService.saveRecord(newRecord);
       setRecords(prev => [newRecord, ...prev]);
+      return true;
     } catch (error: any) {
       alert(error.message || "AI 处理失败，请检查设置或重试。");
+      return false;
     } finally {
       setIsLoading(false);
     }
