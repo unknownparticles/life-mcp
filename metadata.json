@@ -1,0 +1,8 @@
+
+{
+  "name": "Life MCP - 人生经验管理中心",
+  "description": "一个全方位的人生经验管理工具，支持语音和文字输入，利用 Gemini AI 自动总结内容并提取人生经验，支持多端适配和云端逻辑模拟。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
