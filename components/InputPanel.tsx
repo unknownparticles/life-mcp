@@ -4,28 +4,19 @@ import { storageService } from '../services/storageService';
 
 interface InputPanelProps {
   onProcess: (content: string) => void;
+  onQuery: (content: string) => void;
   isLoading: boolean;
+  suggestion: string | null;
+  setSuggestion: (s: string | null) => void;
 }
 
-const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
+const InputPanel: React.FC<InputPanelProps> = ({ onProcess, onQuery, isLoading, suggestion, setSuggestion }) => {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Experience Suggestion Logic (Debounced)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (inputText.trim()) {
-        const experience = storageService.findRelevantExperience(inputText);
-        setSuggestion(experience || '暂无相关经验');
-      } else {
-        setSuggestion(null);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [inputText]);
+  // We no longer use automatic matching, so we remove the useEffect for debounce suggestion matching.
+  // The suggestion will be set via the Query button.
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -68,13 +59,18 @@ const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleRecord = async () => {
     if (!inputText.trim() || isLoading) return;
     const success = await (onProcess(inputText) as unknown as Promise<boolean>);
     if (success) {
       setInputText('');
       setSuggestion(null);
     }
+  };
+
+  const handleQuery = async () => {
+    if (!inputText.trim() || isLoading) return;
+    onQuery(inputText);
   };
 
   return (
@@ -95,6 +91,14 @@ const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
                   {suggestion}
                 </p>
               </div>
+              <button
+                onClick={() => setSuggestion(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
           </div>
         )}
@@ -103,7 +107,7 @@ const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
           <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="记录下刚才的想法或发生的事..."
+            placeholder="记录或查询人生经验..."
             className="flex-1 bg-transparent border-none focus:ring-0 resize-none max-h-32 min-h-[44px] text-slate-700 py-2 px-3"
             rows={1}
             disabled={isLoading}
@@ -119,21 +123,31 @@ const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
                 <path d="M4 8a1 1 0 011 1v1a5 5 0 0010 0V9a1 1 0 112 0v1a7 7 0 01-6 6.92V18a1 1 0 11-2 0v-1.08A7 7 0 014 10V9a1 1 0 011-1z" />
               </svg>
             </button>
+
+            {/* Query Button */}
             <button
-              onClick={handleSubmit}
+              onClick={handleQuery}
               disabled={!inputText.trim() || isLoading}
-              className={`p-3 rounded-full transition-all duration-300 ${!inputText.trim() || isLoading ? 'bg-slate-200 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95'}`}
+              className={`px-4 py-2.5 rounded-2xl flex items-center space-x-1.5 font-bold transition-all duration-300 ${!inputText.trim() || isLoading ? 'bg-slate-100 text-slate-400' : 'bg-amber-100 text-amber-700 hover:bg-amber-200 active:scale-95'}`}
+              title="查询相关经验"
             >
-              {isLoading ? (
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
-                </svg>
-              )}
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">查询</span>
+            </button>
+
+            {/* Record Button */}
+            <button
+              onClick={handleRecord}
+              disabled={!inputText.trim() || isLoading}
+              className={`px-4 py-2.5 rounded-2xl flex items-center space-x-1.5 font-bold transition-all duration-300 ${!inputText.trim() || isLoading ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-100 active:scale-95'}`}
+              title="记录新经验"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">记录</span>
             </button>
           </div>
         </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LifeRecord, Category } from './types';
 import { storageService } from './services/storageService';
-import { processLifeContent } from './services/aiService';
+import { processLifeContent, matchExperienceIndex } from './services/aiService';
 import { authService } from './services/authService';
 import RecordCard from './components/RecordCard';
 import InputPanel from './components/InputPanel';
@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [filter, setFilter] = useState<string>('全部');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const [settings, setSettings] = useState(storageService.getSettings());
   const [session, setSession] = useState(storageService.getSession());
 
@@ -61,6 +62,41 @@ const App: React.FC = () => {
     }
   };
 
+  const handleQuery = async (query: string) => {
+    if (!settings.apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
+
+    setIsLoading(true);
+    setSuggestion(null);
+    try {
+      const indices = records.map(r => ({
+        id: r.id,
+        summary: r.summary,
+        tags: r.tags
+      }));
+
+      const matchedId = await matchExperienceIndex(query, indices, settings);
+
+      if (matchedId) {
+        const matched = records.find(r => r.id === matchedId);
+        if (matched) {
+          setSuggestion(matched.experience);
+        } else {
+          setSuggestion("暂无相关经验");
+        }
+      } else {
+        setSuggestion("暂无相关经验");
+      }
+    } catch (error) {
+      console.error("查询失败:", error);
+      setSuggestion("查询过程中发生错误");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSync = async () => {
     if (!session) return;
     if (session.isGuest) {
@@ -69,8 +105,28 @@ const App: React.FC = () => {
     }
     setIsSyncing(true);
     try {
-      await authService.syncToCloud(records, session, settings);
-      alert("云端同步成功！");
+      // 1. 获取云端数据
+      const cloudRecords = await authService.restoreFromCloud(session, settings);
+
+      // 2. 与本地数据合并 (去重)
+      const localRecords = storageService.getAllRecords();
+      const recordMap = new Map<string, LifeRecord>();
+
+      if (cloudRecords && Array.isArray(cloudRecords)) {
+        cloudRecords.forEach(r => recordMap.set(r.id, r));
+      }
+      localRecords.forEach(r => recordMap.set(r.id, r));
+
+      const mergedRecords = Array.from(recordMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+
+      // 3. 更新本地存储
+      storageService.setAllRecords(mergedRecords);
+      setRecords(mergedRecords);
+
+      // 4. 将合并后的全量数据回传云端，确保双向一致
+      await authService.syncToCloud(mergedRecords, session, settings);
+
+      alert("同步成功！已合并本地与云端数据。");
     } catch (error: any) {
       alert(error.message || "同步失败");
     } finally {
@@ -196,14 +252,16 @@ const App: React.FC = () => {
               className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
               title="导出记忆 JSON"
             >
+              {/* 导出：使用向上箭头 (Upload/Export) */}
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
             </button>
 
             <label className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer" title="导入记忆 JSON">
+              {/* 导入：使用向下箭头 (Download/Import) */}
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
@@ -316,7 +374,13 @@ const App: React.FC = () => {
       </main>
 
       {/* Persistent Input Panel */}
-      <InputPanel onProcess={handleProcess} isLoading={isLoading} />
+      <InputPanel
+        onProcess={handleProcess}
+        onQuery={handleQuery}
+        isLoading={isLoading}
+        suggestion={suggestion}
+        setSuggestion={setSuggestion}
+      />
 
       {/* Settings Modal */}
       <SettingsModal

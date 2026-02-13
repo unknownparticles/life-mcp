@@ -78,3 +78,57 @@ async function processOpenAICompatible(content: string, apiKey: string, baseUrl:
     const resultText = data.choices[0].message.content;
     return JSON.parse(resultText);
 }
+
+const MATCH_SYSTEM_INSTRUCTION = `你是一个经验匹配专家。
+我会给你一个经验索引列表（包含 id、summary 和 tags）以及一个用户的问题。
+你的任务是：
+1. 从列表中找到与问题最相关的经验 ID。
+2. 仅返回该 ID 字符串本身。
+3. 如果没有显著相关的经验，请返回 "none"。
+4. 不要返回任何其他解释或 Markdown 格式。`;
+
+export async function matchExperienceIndex(query: string, indices: any[], settings: AppSettings): Promise<string | null> {
+    const { provider, apiKey, baseUrl, modelName } = settings;
+    if (!apiKey || indices.length === 0) return null;
+
+    const userPrompt = `用户问题：${query}\n\n经验索引列表：\n${JSON.stringify(indices)}`;
+
+    try {
+        let resultText = '';
+        if (provider === AIProvider.GEMINI) {
+            const genAI = new GoogleGenAI(apiKey);
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                systemInstruction: MATCH_SYSTEM_INSTRUCTION
+            });
+            const result = await model.generateContent(userPrompt);
+            resultText = (await result.response).text().trim();
+        } else {
+            const url = baseUrl || (modelName.includes('glm') ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions' : 'https://api.deepseek.com/chat/completions');
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [
+                        { role: 'system', content: MATCH_SYSTEM_INSTRUCTION },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1 // 低随机性
+                })
+            });
+            const data = await response.json();
+            resultText = data.choices[0].message.content.trim();
+        }
+
+        // 清理可能带有的引号或额外空白
+        const id = resultText.replace(/['"]+/g, '').toLowerCase();
+        return id === 'none' ? null : id;
+    } catch (error) {
+        console.error("AI 索引匹配失败:", error);
+        return null;
+    }
+}
