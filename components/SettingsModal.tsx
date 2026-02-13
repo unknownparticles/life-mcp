@@ -102,6 +102,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave }
                             />
                         </div>
                     )}
+
+                    {/* API Key Guide Link */}
+                    {settings.provider === AIProvider.GLM && (
+                        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
+                            <div className="flex items-center space-x-2 text-amber-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-xs font-bold">获取 API Key 指南</span>
+                            </div>
+                            <p className="text-xs text-amber-600 leading-relaxed">
+                                还没有 API Key？请前往 <a href="https://bigmodel.cn/usercenter/proj-mgmt/apikeys" target="_blank" rel="noopener noreferrer" className="underline font-bold">智谱 AI 控制台</a> 注册并登录。
+                                登录后填写开发者邮箱即可领取免费 API Key。
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="px-6 py-5 bg-slate-50 flex space-x-3">
