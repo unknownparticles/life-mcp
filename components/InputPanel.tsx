@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { storageService } from '../services/storageService';
 
 interface InputPanelProps {
   onProcess: (content: string) => void;
@@ -9,7 +10,22 @@ interface InputPanelProps {
 const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Experience Suggestion Logic (Debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputText.trim()) {
+        const experience = storageService.findRelevantExperience(inputText);
+        setSuggestion(experience || '暂无相关经验');
+      } else {
+        setSuggestion(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [inputText]);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -57,12 +73,32 @@ const InputPanel: React.FC<InputPanelProps> = ({ onProcess, isLoading }) => {
     const success = await (onProcess(inputText) as unknown as Promise<boolean>);
     if (success) {
       setInputText('');
+      setSuggestion(null);
     }
   };
 
   return (
     <div className="fixed bottom-6 inset-x-0 mx-auto max-w-2xl px-4 z-50">
       <div className="glass-morphism rounded-3xl p-3 shadow-2xl flex flex-col space-y-2">
+        {/* Suggestion Box */}
+        {suggestion && (
+          <div className="px-3 py-2 mb-1 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="flex items-start space-x-2">
+              <div className="mt-0.5 text-indigo-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-indigo-600 mb-0.5">经验建议</p>
+                <p className="text-sm text-slate-700 leading-relaxed italic">
+                  {suggestion}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center space-x-2">
           <textarea
             value={inputText}

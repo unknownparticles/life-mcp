@@ -110,15 +110,41 @@ const App: React.FC = () => {
       setRecords(storageService.getAllRecords());
       return;
     }
+
     setIsLoading(true);
     try {
+      // 1. 获取云端数据
       const cloudRecords = await authService.restoreFromCloud(newSession, settings);
+
+      // 2. 获取本地数据
+      const localRecords = storageService.getAllRecords();
+
+      // 3. 去重合并 (以 ID 为准)
+      const recordMap = new Map<string, LifeRecord>();
+
+      // 先放云端数据
       if (cloudRecords && Array.isArray(cloudRecords)) {
-        storageService.setAllRecords(cloudRecords);
-        setRecords(cloudRecords);
+        cloudRecords.forEach(r => recordMap.set(r.id, r));
       }
+
+      // 再放本地数据，确保本地新产生的记录也能同步进去
+      localRecords.forEach(r => recordMap.set(r.id, r));
+
+      const mergedRecords = Array.from(recordMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+
+      // 4. 更新存储和状态
+      storageService.setAllRecords(mergedRecords);
+      setRecords(mergedRecords);
+
+      // 5. 自动触发一次同步，确保合并后的数据回流到云端
+      if (mergedRecords.length > 0) {
+        authService.syncToCloud(mergedRecords, newSession, settings).catch(err => console.error("自动合并同步失败:", err));
+      }
+
     } catch (error) {
-      console.error("恢复数据失败:", error);
+      console.error("恢复/合并数据失败:", error);
+      // 如果恢复失败，至少先加载本地的
+      setRecords(storageService.getAllRecords());
     } finally {
       setIsLoading(false);
     }

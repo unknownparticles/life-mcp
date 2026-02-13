@@ -90,5 +90,36 @@ export const storageService = {
       reader.onerror = () => reject(new Error("文件读取失败"));
       reader.readAsText(file);
     });
+  },
+
+  findRelevantExperience: (text: string): string | null => {
+    if (!text.trim()) return null;
+    const records = storageService.getAllRecords();
+    
+    // Simple matching: score based on keywords
+    const keywords = text.toLowerCase().split(/[\s,，。！!？?]+/).filter(k => k.length > 1);
+    if (keywords.length === 0) return null;
+
+    let bestMatch: LifeRecord | null = null;
+    let maxScore = 0;
+
+    for (const record of records) {
+      let score = 0;
+      const content = (record.rawContent + (record.tags?.join(' ') || '')).toLowerCase();
+      
+      for (const kw of keywords) {
+        if (content.includes(kw)) {
+          score += kw.length; // Priority to longer keywords
+        }
+      }
+
+      if (score > maxScore) {
+        maxScore = score;
+        bestMatch = record;
+      }
+    }
+
+    // Threshold to avoid weak matches
+    return maxScore >= 2 ? bestMatch?.experience || null : null;
   }
 };
