@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [filter, setFilter] = useState<string>('全部');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [settings, setSettings] = useState(storageService.getSettings());
   const [session, setSession] = useState(storageService.getSession());
 
@@ -25,6 +26,10 @@ const App: React.FC = () => {
       const loadedRecords = storageService.getAllRecords();
       setRecords(loadedRecords);
     }
+
+    const handleSWUpdate = () => setShowUpdatePrompt(true);
+    window.addEventListener('sw-update-available', handleSWUpdate);
+    return () => window.removeEventListener('sw-update-available', handleSWUpdate);
   }, [session]);
 
   const handleProcess = async (content: string): Promise<boolean> => {
@@ -46,6 +51,13 @@ const App: React.FC = () => {
 
       storageService.saveRecord(newRecord);
       setRecords(prev => [newRecord, ...prev]);
+
+      // 自动同步 (静默同步)
+      if (session && !session.isGuest) {
+        authService.syncToCloud([newRecord, ...records], session, settings)
+          .catch(err => console.error("自动同步失败:", err));
+      }
+
       return true;
     } catch (error: any) {
       alert(error.message || "AI 处理失败，请检查设置或重试。");
@@ -221,8 +233,39 @@ const App: React.FC = () => {
     latest: records[0]?.timestamp ? new Date(records[0].timestamp).toLocaleDateString() : '无'
   };
 
+  const handleApplyUpdate = () => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg && reg.waiting) {
+          reg.waiting.postMessage('SKIP_WAITING');
+        }
+        window.location.reload();
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen pb-32">
+      {/* PWA Update Prompt */}
+      {showUpdatePrompt && (
+        <div className="fixed top-20 inset-x-0 mx-auto max-w-md z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="mx-4 bg-indigo-600 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="text-sm font-bold">新版本已准备就绪</span>
+            </div>
+            <button
+              onClick={handleApplyUpdate}
+              className="px-4 py-1.5 bg-white text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-colors"
+            >
+              立即更新
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
